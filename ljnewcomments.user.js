@@ -1,6 +1,6 @@
 // LJ New Comments script
-// version 0.4 
-// 2006-01-04
+// version 0.5 
+// $Id$
 // Copyright (c) 2005,2006, Paul Wright
 // Released under the GPL. 
 // http://www.gnu.org/copyleft/gpl.html
@@ -54,6 +54,7 @@ else
 function parse_lj_link(url)
 {
     var m;
+    // HERE: www.livejournal.com/~foo form
     if (m = url.match(/^http:\/\/www\.livejournal\.com\/(users|community)\/(\w+)\/(\d+)\.html/))
     {
         return m.slice(1);
@@ -69,19 +70,134 @@ function parse_lj_link(url)
     }
 }
 
+// Find a thing in an array. Return the index or -1 if it's not found.
+function find_in_array(what, array)
+{
+    for (var i = 0; i < array.length; i += 1)
+    {
+        if (array[i] == what)
+            return i;
+    }
+    return -1;
+}
+
+// Retrieve a comma separated list as an Array, using GM_getValue
+function get_list(key)
+{
+    var l;
+    if (l = GM_getValue(key))
+        return l.split(",");
+    else
+        return [];
+}
+
+// How the read comment storage works:
+//
+// We want to prevent the comment database growing without limit, but there's
+// no GM_deleteValue at the time of writing. A trick suggested by Mark
+// Pilgrim is to use a pool of keys and re-cycle them, so that old values
+// are continually being overwritten.
+//
+// So, there's a pool of keys called "entry_N" where N is a number. We'll call
+// them slots. In each slot there's a comma separated array of comment numbers
+// for a particular entry.
+//
+// There are two arrays to keep track of entries. access_order holds the
+// entries we know about in order of access, with the more recent ones at the
+// head of the list. Each entry is kept in this list as the string
+// userName!entryId eg "pw201!666"
+// 
+// slot_order holds the entries we know about in order the slots they're using.
+// That is, if slot_order[5] = "pw201!666", then the GM key "entry_5" holds
+// the comment numbers for pw201's entry number 666.
+// 
+// When we run out of spare slots, we take the key off the end of access_order
+// (which is an entry the user hasn't looked at in a while), find which slot
+// it uses and re-use that for the entry we're currently looking at.
+
+// Store an array of the comment numbers we've seen for a given entry, given
+// the username and entry id.
+function store_comment_array(username, id, comment_list)
+{
+    var entry_key = username + "!" + id;
+    var slot_order = get_list("slot_order");
+    var access_order = get_list("access_order");
+    var max_entries = GM_getValue("max_entries", 500);
+    var slot_index = find_in_array(entry_key, slot_order);
+    var access_index = find_in_array(entry_key, access_order);
+    td_log("slot_index " + slot_index + " access_index " + access_index);
+    if (slot_index != -1)
+    {
+        td_log("Known entry, moving to head of access_list");
+        access_order.splice(access_index, 1);
+        access_order.unshift(entry_key);
+    }
+    else
+    {
+        // Entry isn't known, either drop an entry to create space, or create
+        // a new key.
+        access_order.unshift(entry_key);
+        if (access_order.length > max_entries)
+        {
+            // Too long, drop the oldest read entry
+            var oldest_entry_key = access_order.pop();
+            slot_index = find_in_array(oldest_entry_key, slot_order);
+            slot_order[slot_index] = entry_key;
+            td_log("Recycling slot " + slot_index + " holding " + oldest_entry_key);
+        }
+        else
+        {
+            // Use the next index until we start running out.
+            slot_index = slot_order.length;
+            slot_order.push(entry_key);
+            td_log("Using new slot " + slot_index);
+        }
+    }
+    td_log("Storing " + entry_key + "'s comments in slot " + slot_index);
+    GM_setValue("slot_order", slot_order.join(","));
+    GM_setValue("access_order", access_order.join(","));
+    GM_setValue("entry_" + slot_index, comment_list.join(","));
+}
+
 // Retrieve an array of the comment numbers we've seen for a given entry, given
 // the user name and entry id. Returns an empty list if the entry isn't one
 // we've seen.
 function get_comment_array(username, id)
 {
-    // We store username!entryid with the comments we've read as a list of
-    // numbers. 
-    var stringy_list = GM_getValue(username + "!" + id);
-
-    if (stringy_list)
-        return (stringy_list.split(","));
+    var entry_key = username + "!" + id;
+    var slot_order = get_list("slot_order");
+    var access_order = get_list("access_order");
+    var comment_list;
+    var slot_index = find_in_array(entry_key, slot_order);
+    var access_index = find_in_array(entry_key, access_order);
+    if (slot_index == -1)
+    {
+        // Not found. For backwards compatibility with old versions of the
+        // script, we also look for the old style keys, which just used
+        // the entry_key as a GM_key.
+        var comment_list = get_list(entry_key);
+        if (comment_list.length > 0)
+        {
+            // If we found an old style key, remove the text in it, and
+            // store it in our new slot arrangement, so that the seen
+            // comments are not lost.
+            GM_setValue(entry_key,"");
+            store_comment_array(username, id, comment_list);
+            td_log("Converted old key " + entry_key);
+        }
+    }
     else
-        return [];
+    {
+        comment_list = get_list("entry_" + slot_index);
+        td_log("Retrieved slot " + slot_index);
+        // We remember reads as well, in case someone's looking at a 
+        // friends or entry page to see whether there are new comments.
+        access_order.splice(access_index,1);
+        access_order.unshift(entry_key);
+        GM_setValue("access_order", access_order.join(","));
+    }
+
+    return comment_list;
 }
 
 
@@ -139,10 +255,6 @@ if (commentArray)
 {
     for (var i = 0; i < commentArray.length; i++)
         commentHash[commentArray[i]] = 1;
-    // HERE: When GM lets us delete keys, remember that we visited here, and
-    // prune old pages we've not visited for a while. We can't delete storage
-    // at the moment, all we could do is set the comment list for that entry to
-    // the null string, which doesn't seem very useful.
 }
 
 td_log("Retrieved seen comments");
@@ -166,6 +278,7 @@ for (var i = 0; i < allAnchors.snapshotLength; i++)
     thisAnchor = allAnchors.snapshotItem(i);
     var m;
     // No xpath 2.0 regex support in Firefox, apparently, so filter more here. 
+    // HERE: tidy
     if ((thisAnchor.id && ((m = thisAnchor.id.match(/^ljcmt(\d+)$/)) ||
             (m = thisAnchor.id.match(/^t(\d+)$/))) ||
             (thisAnchor.name && (m = thisAnchor.name.match(/^t(\d+)$/))))
@@ -235,9 +348,10 @@ var storedArray = new Array();
 for (commentNumber in commentHash)
     storedArray.push(commentNumber);
 
+
 if (storedArray.length > 0)
 {
-    GM_setValue(userName + "!" + entryId, storedArray.join(","));    
+    store_comment_array(userName, entryId, storedArray);
     td_log("Storing " + storedArray);
 }
 
