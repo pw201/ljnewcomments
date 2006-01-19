@@ -1,5 +1,5 @@
 // LJ New Comments script
-// version 0.5 
+// version 0.6 
 // $Id$
 // Copyright (c) 2005,2006, Paul Wright
 // Released under the GPL. 
@@ -123,6 +123,10 @@ function get_list(key)
 // HERE: this doesn't cope with someone decreasing max_entries.
 function store_comment_array(username, id, comment_list)
 {
+    // Usernames are coming out of LJ, which puts dashes for underscores
+    // in the new personalised sub-domains. Store them as underscores to
+    // preserve the history from previous versions.
+    username = username.replace(/-/,'_');
     var entry_key = username + "!" + id;
     var slot_order = get_list("slot_order");
     var access_order = get_list("access_order");
@@ -168,6 +172,7 @@ function store_comment_array(username, id, comment_list)
 // we've seen.
 function get_comment_array(username, id)
 {
+    username = username.replace(/-/,'_');
     var entry_key = username + "!" + id;
     var slot_order = get_list("slot_order");
     var access_order = get_list("access_order");
@@ -410,3 +415,4 @@ td_log("added event listener");
 // 0.3      2006-01-04  Yet more varieties of comment anchor/id thingies.
 // 0.4      2006-01-04  Broke javascript, fixed it.
 // 0.5      2006-01-19  New LJ URL style, limit history of seen entries.
+// 0.6      2006-01-19  - becomes _ in stored name, for backwards compat.
