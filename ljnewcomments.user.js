@@ -22,8 +22,7 @@
 // @name          LJ New Comments
 // @namespace     http://www.noctua.org.uk/paul/
 // @description   Remember which comments we've seen on LiveJournal.
-// @include       http://www.livejournal.com/users/*
-// @include       http://www.livejournal.com/community/*
+// @include       http://*.livejournal.com/*
 // ==/UserScript==
 
 if (!GM_log || !GM_setValue || !GM_getValue)
@@ -54,15 +53,19 @@ else
 function parse_lj_link(url)
 {
     var m;
-    // HERE: www.livejournal.com/~foo form
-    if (m = url.match(/^http:\/\/www\.livejournal\.com\/(users|community)\/(\w+)\/(\d+)\.html/))
+    if (m = url.match(/^http:\/\/www\.livejournal\.com\/(users|community)\/([\w-]+)\/(\d+)\.html/))
     {
+        // This is the old form, retained for completeness.
         return m.slice(1);
     }
-    else if (m = url.match(/^http:\/\/(\w+)\.livejournal.com\/(\d+)\.html/))
+    else if (m = url.match(/^http:\/\/([\w-]+)\.livejournal.com\/(\d+)\.html/))
     {
         // Assume personalised LJ URLs are users rather than communities.
         return ["users", m[1], m[2]];
+    }
+    else if (m = url.match(/^http:\/\/(users|community)\.livejournal\.com\/([\w-]+)\/(\d+)\.html/))
+    {
+        return m.slice(1);
     }
     else
     {
@@ -107,16 +110,17 @@ function get_list(key)
 // head of the list. Each entry is kept in this list as the string
 // userName!entryId eg "pw201!666"
 // 
-// slot_order holds the entries we know about in order the slots they're using.
-// That is, if slot_order[5] = "pw201!666", then the GM key "entry_5" holds
-// the comment numbers for pw201's entry number 666.
+// slot_order holds the entries we know about in order of the slots they're
+// using. That is, if slot_order[5] = "pw201!666", then the GM key "entry_5"
+// holds the comment numbers for pw201's entry number 666.
 // 
 // When we run out of spare slots, we take the key off the end of access_order
-// (which is an entry the user hasn't looked at in a while), find which slot
-// it uses and re-use that for the entry we're currently looking at.
+// (which is an entry the user hasn't looked at in a while), find which slot it
+// uses and re-use that for the entry we're currently looking at.
 
 // Store an array of the comment numbers we've seen for a given entry, given
 // the username and entry id.
+// HERE: this doesn't cope with someone decreasing max_entries.
 function store_comment_array(username, id, comment_list)
 {
     var entry_key = username + "!" + id;
@@ -243,7 +247,11 @@ else
 td_log("userName " + userName);
 td_log("entryId " + entryId);
 
-var linkUrl = "http://www.livejournal.com/" + userType + "/" + userName + "/" + entryId + ".html";
+if (userType == "community" || userName[0] == "_")
+    linkUrl = "http://" + userType + ".livejournal.com/" + userName + "/" + entryId + ".html";
+else
+    linkUrl = "http://" + userName + ".livejournal.com/" + entryId + ".html";
+td_log("linkUrl " + linkUrl);
 
 // To test whether we've seen a number, we first convert the list into an
 // associative array with keys as comment numbers (because there's no array
@@ -279,16 +287,21 @@ for (var i = 0; i < allAnchors.snapshotLength; i++)
     var m;
     // No xpath 2.0 regex support in Firefox, apparently, so filter more here. 
     // HERE: tidy
-    if ((thisAnchor.id && ((m = thisAnchor.id.match(/^ljcmt(\d+)$/)) ||
-            (m = thisAnchor.id.match(/^t(\d+)$/))) ||
-            (thisAnchor.name && (m = thisAnchor.name.match(/^t(\d+)$/))))
+    var attr = thisAnchor.id || thisAnchor.name;
+    if (attr && ((m = attr.match(/^ljcmt(\d+)$/)) ||
+            (m = attr.match(/^t(\d+)$/)))
             && !commentHash[m[1]])
     {
         td_log("Matched " + m);
-        newCommentAnchors.push([m[0], thisAnchor]);
+        newCommentAnchors.push([m[1], thisAnchor]);
         commentHash[m[1]] = 1;
     }
 }
+
+// HERE: try a bit harder. Look in LJcmt hash thing that LJ provides, and
+// look for thread links for the new ones, and mark them up. Better than
+// nothing for styles which don't provide named anchors or elements for
+// collapsed comments. LJ's standardisation wins again!
 
 // If there's nothing to do here, stop now.
 if (newCommentAnchors.length == 0)
@@ -299,11 +312,9 @@ var nextComment = 0;
 
 for (var i = 0; i < newCommentAnchors.length; i++)
 {
-    var thisAnchorName = newCommentAnchors[i][0];
+    var commentNumber = newCommentAnchors[i][0];
     thisAnchor = newCommentAnchors[i][1];
-    td_log(i + " " + thisAnchorName);
 
-    var commentNumber = thisAnchorName.match(/\d+/)[0];
     td_log("commentNumber " + commentNumber);
 
     // Find a thread link following this anchor. This is probably a good place
@@ -317,6 +328,17 @@ for (var i = 0; i < newCommentAnchors.length; i++)
         XPathResult.FIRST_ORDERED_NODE_TYPE,
         null).singleNodeValue;
     td_log("Search for comment link");
+    // Try harder: if there's no thread link, look for a reply link.
+    if (!thisLink)
+    {
+        thisLink = document.evaluate(
+                './/following::a[starts-with(@href,"' + linkUrl + '?replyto=' + commentNumber + '")]',
+                thisAnchor,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null).singleNodeValue;
+    }
+
 
     // If we can't find the link, we can't mark it as new, but we can still let
     // the "n" key binding take us to it, so don't despair.
@@ -387,3 +409,4 @@ td_log("added event listener");
 //                      use scrollIntoView, add "p" key, make debug optional
 // 0.3      2006-01-04  Yet more varieties of comment anchor/id thingies.
 // 0.4      2006-01-04  Broke javascript, fixed it.
+// 0.5      2006-01-19  New LJ URL style, limit history of seen entries.
