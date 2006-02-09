@@ -1,9 +1,10 @@
 // LJ New Comments script
-// version 0.6 
+// version 0.7 
 // $Id$
 // Copyright (c) 2005,2006, Paul Wright
-// Released under the GPL. 
-// http://www.gnu.org/copyleft/gpl.html
+// With the exception of the EventManager, which belongs to someone else,
+// this code is released under the MIT licence which you can find at
+// the bottom of this file.
 //
 // --------------------------------------------------------------------
 //
@@ -44,6 +45,53 @@ else
 {
     function td_log(what) {}
 }
+
+// Work around Firefox 1.5 memory leak with event listeners.
+// See http://www.squarefree.com/2006/02/04/memory-leak-progress/
+// and http://thread.gmane.org/gmane.comp.mozilla.firefox.greasemonkey/7321
+// Code from Andre (gm at andrecgn dot de)
+EventManager= {                                                                 
+   _registry: null,                                                             
+   Initialise: function() {                                                     
+     if (this._registry == null) {                                              
+       this._registry = [];                                                     
+       EventManager.Add(window, "_unload", this.CleanUp);                       
+     }                                                                          
+   },                                                                           
+   Add: function(obj, type, fn, useCapture) {                                   
+     this.Initialise();                                                         
+     if (typeof obj == "string")                                                
+       obj = document.getElementById(obj);                                      
+     if (obj == null || fn == null)                                             
+       return false;                                                            
+     if (type=="unload") {                                                      
+         // call later when CleanUp is called. don't hook up                    
+         this._registry.push({obj:obj, type:type, fn:fn,                        
+useCapture:useCapture});                                                        
+         return true                                                            
+     }                                                                          
+     var realType=(type=="_unload"?"unload":type);                              
+     obj.addEventListener(realType, fn, useCapture);                            
+     this._registry.push({obj:obj, type:type, fn:fn,                            
+useCapture:useCapture});                                                        
+     return true;                                                               
+   },                                                                           
+   CleanUp: function() {                                                        
+     for (var i = 0; i < EventManager._registry.length; i++) {                  
+       with(EventManager._registry[i]) {                                        
+         if(type=="unload") {                                                   
+             fn();                                                              
+         } else {                                                               
+             if (type="_unload") type = "unload";                               
+             obj.removeEventListener(type,fn,useCapture);                       
+         }                                                                      
+       }                                                                        
+     }                                                                          
+     td_log("Cleaned up events");
+     EventManager._registry = null;                                             
+   }                                                                            
+};                                                                              
+
 
 // Given an URL referring to LJ, return either an array of 3 elements being
 // 0. user type (users or community)
@@ -240,10 +288,14 @@ else
                 && (linkTextMatch = thisLink.firstChild.nodeValue.match(/\d+/))
                 && (ncMatch[1] == linkTextMatch[0]))
         {
-            // This doesn't cope with deleted comments, but there's not much I
-            // can do about that.
+            // Deleted comments make the new number negative as we've no
+            // way of knowing they've gone, so ensure we never mark an
+            // entry with (-1 new) or similar.
             var commentArray = get_comment_array(parsedLink[1], parsedLink[2]);
-            thisLink.firstChild.nodeValue += " (" + (ncMatch[1] - commentArray.length) + " new)";
+            var num_new = ncMatch[1] - commentArray.length;
+            if (num_new >= 0)
+                thisLink.firstChild.nodeValue += " (" + num_new + " new)";
+            td_log(thisLink.href + " has " + num_new + " new");
         }
     }
 
@@ -360,7 +412,8 @@ for (var i = 0; i < newCommentAnchors.length; i++)
         // means nextComment needs setting to the one after that. This is a bit
         // sick, as we need to remember the current nextCommentIndex inside the
         // function.
-        newElement.addEventListener("click", eval("foo = function bar(event) { nextComment = " + ((nextCommentIndex + 1) % newCommentAnchors.length) + "; newCommentAnchors[" + nextCommentIndex + "][1].scrollIntoView(true);}"),
+        EventManager.Add(newElement, "click", 
+        eval("foo = function bar(event) { nextComment = " + ((nextCommentIndex + 1) % newCommentAnchors.length) + "; newCommentAnchors[" + nextCommentIndex + "][1].scrollIntoView(true);}"),
                 true); 
         td_log("comment " + commentNumber + " is marked");
     }
@@ -402,7 +455,7 @@ function keypress_handler(event)
     }
 }
 
-document.addEventListener("keypress", keypress_handler, true);
+EventManager.Add(document, "keypress", keypress_handler, true);
 td_log("added event listener");
 
 // HERE: have mark all as read/unread option. Have mark thread as unread option
@@ -416,3 +469,26 @@ td_log("added event listener");
 // 0.4      2006-01-04  Broke javascript, fixed it.
 // 0.5      2006-01-19  New LJ URL style, limit history of seen entries.
 // 0.6      2006-01-19  - becomes _ in stored name, for backwards compat.
+// 0.7      2006-02-08  Work around sieve-like FF1.5. Don't display (-3 new) or similar.
+
+
+// Copyright (c) 2006 Paul Wright
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to
+// deal in the Software without restriction, including without limitation the
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+// sell copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// IN THE SOFTWARE.
+
