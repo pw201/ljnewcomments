@@ -1,5 +1,5 @@
 // LJ New Comments script
-// version 0.7 
+// version 0.8 
 // $Id$
 // Copyright (c) 2005,2006, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
@@ -50,47 +50,47 @@ else
 // See http://www.squarefree.com/2006/02/04/memory-leak-progress/
 // and http://thread.gmane.org/gmane.comp.mozilla.firefox.greasemonkey/7321
 // Code from Andre (gm at andrecgn dot de)
-EventManager= {                                                                 
-   _registry: null,                                                             
-   Initialise: function() {                                                     
-     if (this._registry == null) {                                              
-       this._registry = [];                                                     
-       EventManager.Add(window, "_unload", this.CleanUp);                       
-     }                                                                          
-   },                                                                           
-   Add: function(obj, type, fn, useCapture) {                                   
-     this.Initialise();                                                         
-     if (typeof obj == "string")                                                
-       obj = document.getElementById(obj);                                      
-     if (obj == null || fn == null)                                             
-       return false;                                                            
-     if (type=="unload") {                                                      
-         // call later when CleanUp is called. don't hook up                    
-         this._registry.push({obj:obj, type:type, fn:fn,                        
-useCapture:useCapture});                                                        
-         return true                                                            
-     }                                                                          
-     var realType=(type=="_unload"?"unload":type);                              
-     obj.addEventListener(realType, fn, useCapture);                            
-     this._registry.push({obj:obj, type:type, fn:fn,                            
-useCapture:useCapture});                                                        
-     return true;                                                               
-   },                                                                           
-   CleanUp: function() {                                                        
-     for (var i = 0; i < EventManager._registry.length; i++) {                  
-       with(EventManager._registry[i]) {                                        
-         if(type=="unload") {                                                   
-             fn();                                                              
-         } else {                                                               
-             if (type="_unload") type = "unload";                               
-             obj.removeEventListener(type,fn,useCapture);                       
-         }                                                                      
-       }                                                                        
-     }                                                                          
+EventManager= {
+   _registry: null,
+   Initialise: function() {
+     if (this._registry == null) {
+       this._registry = [];
+       EventManager.Add(window, "_unload", this.CleanUp);
+     }
+   },
+   Add: function(obj, type, fn, useCapture) {
+     this.Initialise();
+     if (typeof obj == "string")
+       obj = document.getElementById(obj);
+     if (obj == null || fn == null)
+       return false;
+     if (type=="unload") {
+         // call later when CleanUp is called. don't hook up
+         this._registry.push({obj:obj, type:type, fn:fn,
+useCapture:useCapture});
+         return true
+     }
+     var realType=(type=="_unload"?"unload":type);
+     obj.addEventListener(realType, fn, useCapture);
+     this._registry.push({obj:obj, type:type, fn:fn,
+useCapture:useCapture});
+     return true;
+   },
+   CleanUp: function() {
+     for (var i = 0; i < EventManager._registry.length; i++) {
+       with(EventManager._registry[i]) {
+         if(type=="unload") {
+             fn();
+         } else {
+             if (type=="_unload") type = "unload";
+             obj.removeEventListener(type,fn,useCapture);
+         }
+       }
+     }
      td_log("Cleaned up events");
-     EventManager._registry = null;                                             
-   }                                                                            
-};                                                                              
+     EventManager._registry = null;
+   }
+};
 
 
 // Given an URL referring to LJ, return either an array of 3 elements being
@@ -470,6 +470,8 @@ td_log("added event listener");
 // 0.5      2006-01-19  New LJ URL style, limit history of seen entries.
 // 0.6      2006-01-19  - becomes _ in stored name, for backwards compat.
 // 0.7      2006-02-08  Work around sieve-like FF1.5. Don't display (-3 new) or similar.
+// 0.8      2006-02-09  Fix bug in EventManager.
+
 
 
 // Copyright (c) 2006 Paul Wright
