@@ -1,5 +1,5 @@
 // LJ New Comments script
-// version 0.8 
+// version 0.9 
 // $Id$
 // Copyright (c) 2005,2006, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
@@ -259,6 +259,12 @@ function get_comment_array(username, id)
 
 
 var thisLocation, userName, entryId; 
+// array of [name, object] pairs. The name is null for entry list/friends list
+// pages, and contains the comment number (the NNNN part) as a string for
+// entries themselves. The object is an anchor on flist plages and whatever
+// happened to have a comment ID attached on the entry itself.
+var newCommentAnchors = new Array(); 
+var nextComment = 0;
 
 if (thisLocation = parse_lj_link(document.location.href))
 {
@@ -277,8 +283,9 @@ else
             '//a[contains(@href,"?nc=") or contains(@href,"&nc=")]',
             document,
             null,
-            XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
+            XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
             null);
+    var seenNew = false; 
     for (var i = 0; i < links.snapshotLength; i++)
     {
         var thisLink = links.snapshotItem(i);
@@ -295,9 +302,19 @@ else
             var num_new = ncMatch[1] - commentArray.length;
             if (num_new >= 0)
                 thisLink.firstChild.nodeValue += " (" + num_new + " new)";
+            if (num_new > 0)
+            {
+                // Use the same format for newCommentAnchors as we do on an
+                // actual entry page, so set the comment number to the null string.
+                newCommentAnchors.push(["", thisLink]);
+                seenNew = true;
+            }
             td_log(thisLink.href + " has " + num_new + " new");
         }
     }
+    // We can use the same keypress_handler as we do on entry pages.
+    if (seenNew)
+        EventManager.Add(document, "keypress", keypress_handler, true);
 
     return;
 }
@@ -337,7 +354,6 @@ allAnchors = document.evaluate(
     null,
     XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
     null);
-var newCommentAnchors = new Array(); // array of [name, object] pairs.
 for (var i = 0; i < allAnchors.snapshotLength; i++)
 {
     thisAnchor = allAnchors.snapshotItem(i);
@@ -365,7 +381,6 @@ if (newCommentAnchors.length == 0)
     return;
 
 var newElement;
-var nextComment = 0;
 
 for (var i = 0; i < newCommentAnchors.length; i++)
 {
@@ -435,24 +450,39 @@ if (storedArray.length > 0)
     td_log("Storing " + storedArray);
 }
 
-// Set up the key binding for the "n" key.
+var last_obj, last_outlineStyle;
+
+// Handle keypresses on the individual entry and on entries/friendlist pages
 function keypress_handler(event)
 {
     var t = event.target;
     if (t && t.nodeName && (t.nodeName == "INPUT" || t.nodeName == "SELECT" || t.nodeName == "TEXTAREA"))
         return;
+    // Allow return key to follow link to entry with new comments.
+    if (event.which == 13 && last_obj && last_obj.nodeName == 'A')
+        window.location.href = last_obj.href;
+    if (event.which != 110 && event.which != 112)
+        return;
+    // We put the element at the top of the screen for comments, at the bottom for entries. This
+    // probably works with most styles.
+    var isComment = (newCommentAnchors[nextComment][0] != "");
+    var obj;
     if (event.which == 110) // 'n'
     {
-        var obj = newCommentAnchors[nextComment][1];
+        obj = newCommentAnchors[nextComment][1];
         nextComment = (nextComment + 1) % newCommentAnchors.length;
-        obj.scrollIntoView(true);
     }
     else if (event.which == 112) // 'p'
     {
         nextComment = (nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length;
-        var obj = newCommentAnchors[(nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length][1];
-        obj.scrollIntoView(true);
+        obj = newCommentAnchors[(nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length][1];
     }
+    if (last_obj)
+        last_obj.style.outlineStyle = last_outlineStyle;
+    last_outlineStyle = obj.style.outlineStyle;
+    last_obj = obj;
+    obj.style.outlineStyle = 'dotted';
+    obj.scrollIntoView(isComment); 
 }
 
 EventManager.Add(document, "keypress", keypress_handler, true);
@@ -471,6 +501,7 @@ td_log("added event listener");
 // 0.6      2006-01-19  - becomes _ in stored name, for backwards compat.
 // 0.7      2006-02-08  Work around sieve-like FF1.5. Don't display (-3 new) or similar.
 // 0.8      2006-02-09  Fix bug in EventManager.
+// 0.9      2006-06-04  "n" and "p" work on friendlists. Box around selected comment.
 
 
 
