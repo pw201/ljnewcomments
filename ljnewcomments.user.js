@@ -1,5 +1,5 @@
 // LJ New Comments script
-// version 0.9 
+// version 1.0 
 // $Id$
 // Copyright (c) 2005,2006, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
@@ -331,12 +331,21 @@ td_log("linkUrl " + linkUrl);
 // associative array with keys as comment numbers (because there's no array
 // indexOf method in the JS version I have, and a hash is probably quicker
 // anyway).
+// 
+// We also use commentHash as a way of preferring elements with an id (which
+// might be a div or a table we can draw a box around to indicate the selected
+// comment) to elements with a name (which will just be an anchor). Some styles
+// have both for some comments and we'd like to draw a box around all the
+// comments if we can. We keep track of which comment ID's are where in
+// newCommentAnchors by making the index into newCommentAnchors the value of
+// the hash, so we can always go back and substitute for an element if we
+// encounter one we like more.
 var commentArray = get_comment_array(userName, entryId);
 commentHash = new Object();
 if (commentArray)
 {
     for (var i = 0; i < commentArray.length; i++)
-        commentHash[commentArray[i]] = 1;
+        commentHash[commentArray[i]] = -1;
 }
 
 td_log("Retrieved seen comments");
@@ -359,15 +368,27 @@ for (var i = 0; i < allAnchors.snapshotLength; i++)
     thisAnchor = allAnchors.snapshotItem(i);
     var m;
     // No xpath 2.0 regex support in Firefox, apparently, so filter more here. 
-    // HERE: tidy
     var attr = thisAnchor.id || thisAnchor.name;
     if (attr && ((m = attr.match(/^ljcmt(\d+)$/)) ||
-            (m = attr.match(/^t(\d+)$/)))
-            && !commentHash[m[1]])
+            (m = attr.match(/^t(\d+)$/))))
     {
         td_log("Matched " + m);
-        newCommentAnchors.push([m[1], thisAnchor]);
-        commentHash[m[1]] = 1;
+        // We prefer elements with an id to elements with a name, as
+        // the latter might be something we can draw a box around.
+        if (m[1] in commentHash)
+        {
+            var index = commentHash[m[1]];
+            if (index != -1 &&
+                    newCommentAnchors[index][1].name && thisAnchor.id)
+            {
+                newCommentAnchors[index] = [m[1], thisAnchor];
+            }
+        }
+        else
+        {
+            newCommentAnchors.push([m[1], thisAnchor]);
+            commentHash[m[1]] = newCommentAnchors.length - 1;
+        }
     }
 }
 
@@ -458,6 +479,11 @@ function keypress_handler(event)
     var t = event.target;
     if (t && t.nodeName && (t.nodeName == "INPUT" || t.nodeName == "SELECT" || t.nodeName == "TEXTAREA"))
         return;
+
+    // Return if any modifier is active, so we don't handle e.g. ctrl+n
+    if(event.ctrlKey || event.altKey  || event.ctrlKey  || event.metaKey  || event.shiftKey)
+	return;
+
     // Allow return key to follow link to entry with new comments.
     if (event.which == 13 && last_obj && last_obj.nodeName == 'A')
         window.location.href = last_obj.href;
@@ -502,7 +528,8 @@ td_log("added event listener");
 // 0.7      2006-02-08  Work around sieve-like FF1.5. Don't display (-3 new) or similar.
 // 0.8      2006-02-09  Fix bug in EventManager.
 // 0.9      2006-06-04  "n" and "p" work on friendlists. Box around selected comment.
-
+// 1.0      2007-02-20  Fix bug with CTRL+N intercept, courtesy of Legolas.
+//                      Try harder to draw boxes.
 
 
 // Copyright (c) 2006 Paul Wright
