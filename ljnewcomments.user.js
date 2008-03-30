@@ -1,5 +1,5 @@
 // LJ New Comments script
-// version 1.0 
+// version 1.1 
 // $Id$
 // Copyright (c) 2005,2006, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
@@ -350,7 +350,7 @@ if (commentArray)
 
 td_log("Retrieved seen comments");
 
-var allAnchors, thisAnchor, thisLink;
+var allAnchors;
 
 // Comments seem to be introduced with either elements with id attributes of
 // the form ljcmtNNNN or tNNNN or anchors named tNNNN, or possibly both. To
@@ -365,7 +365,7 @@ allAnchors = document.evaluate(
     null);
 for (var i = 0; i < allAnchors.snapshotLength; i++)
 {
-    thisAnchor = allAnchors.snapshotItem(i);
+    var thisAnchor = allAnchors.snapshotItem(i);
     var m;
     // No xpath 2.0 regex support in Firefox, apparently, so filter more here. 
     var attr = thisAnchor.id || thisAnchor.name;
@@ -402,58 +402,96 @@ if (newCommentAnchors.length == 0)
     return;
 
 var newElement;
+var elementIndex = 0;
+var last_obj, last_outlineStyle;
 
-for (var i = 0; i < newCommentAnchors.length; i++)
+function select_obj(obj, isComment)
 {
-    var commentNumber = newCommentAnchors[i][0];
-    thisAnchor = newCommentAnchors[i][1];
+    if (last_obj)
+        last_obj.style.outlineStyle = last_outlineStyle;
+    last_outlineStyle = obj.style.outlineStyle;
+    last_obj = obj;
+    obj.style.outlineStyle = 'dotted';
+    // We put the element at the top of the screen for comments, at the bottom
+    // for entries. This probably works with most styles.
+    obj.scrollIntoView(isComment); 
+}
 
-    td_log("commentNumber " + commentNumber);
+function min(a, b)
+{
+    if (a < b)
+        return a;
+    else
+        return b;
+}
 
-    // Find a thread link following this anchor. This is probably a good place
-    // to put a note that this is new, as in most styles it's pretty prominent
-    // in the header or footer. Since LJ has no consistency in div class or
-    // span names for different parts of the page, it's the best I can do. 
-    thisLink = document.evaluate(
-        './/following::a[starts-with(@href,"' + linkUrl + '?thread=' + commentNumber + '#t' + commentNumber + '")]',
-        thisAnchor,
-        null,
-        XPathResult.FIRST_ORDERED_NODE_TYPE,
-        null).singleNodeValue;
-    td_log("Search for comment link");
-    // Try harder: if there's no thread link, look for a reply link.
-    if (!thisLink)
+// We batch up marking up comments as new, otherwise we lock out Firefox for ages on
+// pages with hundreds of comments, which causes it to warn the user that our
+// Javascript hasn't stopped running.
+function markup_new_comments()
+{
+    var last_comment = min(newCommentAnchors.length, elementIndex + 50);
+    td_log("Marking up comments");
+    for (; elementIndex < last_comment; elementIndex++)
     {
-        thisLink = document.evaluate(
-                './/following::a[starts-with(@href,"' + linkUrl + '?replyto=' + commentNumber + '")]',
+        var commentNumber = newCommentAnchors[elementIndex][0];
+        var thisAnchor = newCommentAnchors[elementIndex][1];
+
+        td_log("commentNumber " + commentNumber);
+
+        // Find a thread link following this anchor. This is probably a good place
+        // to put a note that this is new, as in most styles it's pretty prominent
+        // in the header or footer. Since LJ has no consistency in div class or
+        // span names for different parts of the page, it's the best I can do. 
+        var thisLink = document.evaluate(
+                'descendant::a[contains(@href,"' + commentNumber + '")]',
                 thisAnchor,
                 null,
                 XPathResult.FIRST_ORDERED_NODE_TYPE,
                 null).singleNodeValue;
+        td_log("Search for comment link");
+        if (!thisLink)
+        {
+            thisLink = document.evaluate(
+                    'following::a[contains(@href,"' + commentNumber + '")]',
+                    thisAnchor,
+                    null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE,
+                    null).singleNodeValue;
+            td_log("Second search for comment link");
+        }
+
+        if (thisLink)
+        {
+            // Make each entry on a new comment a link to the next new comment
+            newElement = document.createElement('a');
+            newElement.innerHTML = '<a href="javascript:void(0);">NEW</a>';
+            thisLink.parentNode.insertBefore(newElement, thisLink);
+            newElement.parentNode.insertBefore(document.createTextNode(" "), thisLink);
+            // When the link is clicked, update our value of the next comment for
+            // the key bindings, and move the highlighted box to the comment we clicked.
+            // This needs a closure, because the click handler needs to
+            // remember the elementIndex for its specific object.
+            EventManager.Add(newElement, "click", 
+                    function (ei) {
+                    return function()
+                    {
+                    select_obj(newCommentAnchors[ei][1], true);
+                    nextComment = ((ei + 1) % newCommentAnchors.length);
+                    }
+                    } (elementIndex))
+            td_log("comment " + commentNumber + " is marked");
+        }
     }
-
-
-    // If we can't find the link, we can't mark it as new, but we can still let
-    // the "n" key binding take us to it, so don't despair.
-    if (thisLink)
+    if (elementIndex < newCommentAnchors.length)
     {
-        // Make each entry on a new comment a link to the next new comment
-        var nextCommentIndex = (i + 1) % newCommentAnchors.length;
-        newElement = document.createElement('a');
-        newElement.innerHTML = '<a href="javascript:void(0);">New</a>';
-        thisLink.parentNode.insertBefore(newElement, thisLink.nextSibling);
-        newElement.parentNode.insertBefore(document.createTextNode(" "), newElement);
-        // When the link is clicked, update our value of the next comment for
-        // the "n" key binding, and go to the nextCommentIndex'th element. That
-        // means nextComment needs setting to the one after that. This is a bit
-        // sick, as we need to remember the current nextCommentIndex inside the
-        // function.
-        EventManager.Add(newElement, "click", 
-        eval("foo = function bar(event) { nextComment = " + ((nextCommentIndex + 1) % newCommentAnchors.length) + "; newCommentAnchors[" + nextCommentIndex + "][1].scrollIntoView(true);}"),
-                true); 
-        td_log("comment " + commentNumber + " is marked");
+        td_log("Back later");
+        window.setTimeout(markup_new_comments, 400);
     }
 }
+
+// Markup some new comments, arrange to come back for more if there are lots
+markup_new_comments();
 
 // Remember the comments we saw. GM can only store strings, so we stuff
 // everything back into a string, via an array's join method.    
@@ -471,7 +509,6 @@ if (storedArray.length > 0)
     td_log("Storing " + storedArray);
 }
 
-var last_obj, last_outlineStyle;
 
 // Handle keypresses on the individual entry and on entries/friendlist pages
 function keypress_handler(event)
@@ -482,15 +519,17 @@ function keypress_handler(event)
 
     // Return if any modifier is active, so we don't handle e.g. ctrl+n
     if(event.ctrlKey || event.altKey  || event.ctrlKey  || event.metaKey  || event.shiftKey)
-	return;
+        return;
 
     // Allow return key to follow link to entry with new comments.
     if (event.which == 13 && last_obj && last_obj.nodeName == 'A')
+    {
         window.location.href = last_obj.href;
+        return;
+    }
+
     if (event.which != 110 && event.which != 112)
         return;
-    // We put the element at the top of the screen for comments, at the bottom for entries. This
-    // probably works with most styles.
     var isComment = (newCommentAnchors[nextComment][0] != "");
     var obj;
     if (event.which == 110) // 'n'
@@ -503,19 +542,16 @@ function keypress_handler(event)
         nextComment = (nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length;
         obj = newCommentAnchors[(nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length][1];
     }
-    if (last_obj)
-        last_obj.style.outlineStyle = last_outlineStyle;
-    last_outlineStyle = obj.style.outlineStyle;
-    last_obj = obj;
-    obj.style.outlineStyle = 'dotted';
-    obj.scrollIntoView(isComment); 
+    select_obj(obj, isComment);
 }
+
 
 EventManager.Add(document, "keypress", keypress_handler, true);
 td_log("added event listener");
 
 // HERE: have mark all as read/unread option. Have mark thread as unread option
-// using the JS array for the thread structure which LJ provide.
+// using the JS array for the thread structure which LJ provide. Markup expanded
+// threads using LJ's expander code.
 
 // Version  Date        Comment
 // 0.1      2006-01-02  First version
@@ -530,7 +566,7 @@ td_log("added event listener");
 // 0.9      2006-06-04  "n" and "p" work on friendlists. Box around selected comment.
 // 1.0      2007-02-20  Fix bug with CTRL+N intercept, courtesy of Legolas.
 //                      Try harder to draw boxes.
-
+// 1.1      2008-03-31  XPath speedups, make NEW links work better.
 
 // Copyright (c) 2006 Paul Wright
 //
