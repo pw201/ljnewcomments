@@ -1,7 +1,7 @@
 // LJ New Comments script
-// version 1.1 
+// version 1.2 
 // $Id$
-// Copyright (c) 2005,2006, Paul Wright
+// Copyright (c) 2005-2008, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
 // this code is released under the MIT licence which you can find at
 // the bottom of this file.
@@ -120,6 +120,28 @@ function parse_lj_link(url)
         return undefined;
     }
 }
+
+// Find a descendant with the specified XPath, and if you can't, find a follower
+function desc_or_follow(obj, xpath)
+{
+    var retval = document.evaluate(
+            'descendant::' + xpath,
+            obj,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null).singleNodeValue;
+    if (!retval)
+    {
+        retval = document.evaluate(
+                'following::' + xpath,
+                obj,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null).singleNodeValue;
+    }
+    return retval;
+}
+
 
 // Find a thing in an array. Return the index or -1 if it's not found.
 function find_in_array(what, array)
@@ -292,6 +314,7 @@ else
         var parsedLink, ncMatch, linkTextMatch;
         if ((parsedLink = parse_lj_link(thisLink.href))
                 && (ncMatch = thisLink.href.match(/[\?&]nc=(\d+)/))
+                && thisLink.firstChild.nodeValue
                 && (linkTextMatch = thisLink.firstChild.nodeValue.match(/\d+/))
                 && (ncMatch[1] == linkTextMatch[0]))
         {
@@ -443,23 +466,8 @@ function markup_new_comments()
         // to put a note that this is new, as in most styles it's pretty prominent
         // in the header or footer. Since LJ has no consistency in div class or
         // span names for different parts of the page, it's the best I can do. 
-        var thisLink = document.evaluate(
-                'descendant::a[contains(@href,"' + commentNumber + '")]',
-                thisAnchor,
-                null,
-                XPathResult.FIRST_ORDERED_NODE_TYPE,
-                null).singleNodeValue;
-        td_log("Search for comment link");
-        if (!thisLink)
-        {
-            thisLink = document.evaluate(
-                    'following::a[contains(@href,"' + commentNumber + '")]',
-                    thisAnchor,
-                    null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE,
-                    null).singleNodeValue;
-            td_log("Second search for comment link");
-        }
+        var thisLink = desc_or_follow(thisAnchor,
+                'a[contains(@href,"' + commentNumber + '")]');
 
         if (thisLink)
         {
@@ -528,21 +536,39 @@ function keypress_handler(event)
         return;
     }
 
-    if (event.which != 110 && event.which != 112)
+    if (event.which != 110 && event.which != 112 && event.which != 1090 && event.which != 1079)
         return;
     var isComment = (newCommentAnchors[nextComment][0] != "");
     var obj;
-    if (event.which == 110) // 'n'
+    var commentNumber;
+    if (event.which == 110 || event.which == 1090) // 'n'
     {
         obj = newCommentAnchors[nextComment][1];
+        commentNumber = newCommentAnchors[nextComment][0];
         nextComment = (nextComment + 1) % newCommentAnchors.length;
     }
-    else if (event.which == 112) // 'p'
+    else if (event.which == 112 || event.which == 1079) // 'p'
     {
         nextComment = (nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length;
         obj = newCommentAnchors[(nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length][1];
+        commentNumber = newCommentAnchors[(nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length][0];
     }
     select_obj(obj, isComment);
+    if (isComment)
+    {
+        var expander = desc_or_follow(obj,
+                'a[contains(@href,"' + commentNumber + '")]/child::text()[string(.)="Expand"]');
+        var replylink = desc_or_follow(obj,
+                'a[contains(@href,"?replyto=' + commentNumber + '")]');
+        if (expander && !replylink)
+        {
+            var evt = document.createEvent("MouseEvents");
+            if(evt && evt.initMouseEvent) {
+                evt.initMouseEvent("click",true,true,document.defaultView,1,0,0,0,0,false,false,false,false,0,null);
+                expander.parentNode.dispatchEvent(evt);
+            } 
+        }
+    }
 }
 
 
@@ -567,8 +593,9 @@ td_log("added event listener");
 // 1.0      2007-02-20  Fix bug with CTRL+N intercept, courtesy of Legolas.
 //                      Try harder to draw boxes.
 // 1.1      2008-03-31  XPath speedups, make NEW links work better.
+// 1.2      2008-09-24  Russian keyboards, make threads expand.
 
-// Copyright (c) 2006 Paul Wright
+// Copyright (c) 2005-2008 Paul Wright
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
