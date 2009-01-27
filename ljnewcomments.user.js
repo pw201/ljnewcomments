@@ -1,5 +1,5 @@
 // LJ New Comments script
-// version 1.2 
+// version 1.3 
 // $Id$
 // Copyright (c) 2005-2008, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
