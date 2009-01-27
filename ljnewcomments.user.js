@@ -93,10 +93,9 @@ useCapture:useCapture});
 };
 
 
-// Given an URL referring to LJ, return either an array of 3 elements being
-// 0. user type (users or community)
-// 1. user name
-// 2. entry ID
+// Given an URL referring to LJ, return either an array of 2 elements being
+// 0. user name
+// 1. entry ID
 // or return undefined if the URL is not an entry in someone's LJ.
 function parse_lj_link(url)
 {
@@ -104,16 +103,15 @@ function parse_lj_link(url)
     if (m = url.match(/^http:\/\/www\.livejournal\.com\/(users|community)\/([\w-]+)\/(\d+)\.html/))
     {
         // This is the old form, retained for completeness.
-        return m.slice(1);
+        return m.slice(2);
     }
-    else if (m = url.match(/^http:\/\/([\w-]+)\.livejournal.com\/(\d+)\.html/))
+    else if (m = url.match(/^http:\/\/([\w-\.]+)\.livejournal.com\/(\d+)\.html/))
     {
-        // Assume personalised LJ URLs are users rather than communities.
-        return ["users", m[1], m[2]];
+        return m.slice(1);
     }
     else if (m = url.match(/^http:\/\/(users|community)\.livejournal\.com\/([\w-]+)\/(\d+)\.html/))
     {
-        return m.slice(1);
+        return m.slice(2);
     }
     else
     {
@@ -291,9 +289,8 @@ var nextComment = 0;
 if (thisLocation = parse_lj_link(document.location.href))
 {
     // We're on an entry page, store the relevant information from its URL.
-    userType = thisLocation[0];
-    userName = thisLocation[1];
-    entryId = thisLocation[2];
+    userName = thisLocation[0];
+    entryId = thisLocation[1];
 }
 else
 {
@@ -321,7 +318,7 @@ else
             // Deleted comments make the new number negative as we've no
             // way of knowing they've gone, so ensure we never mark an
             // entry with (-1 new) or similar.
-            var commentArray = get_comment_array(parsedLink[1], parsedLink[2]);
+            var commentArray = get_comment_array(parsedLink[0], parsedLink[1]);
             var num_new = ncMatch[1] - commentArray.length;
             if (num_new >= 0)
                 thisLink.firstChild.nodeValue += " (" + num_new + " new)";
@@ -344,11 +341,6 @@ else
 td_log("userName " + userName);
 td_log("entryId " + entryId);
 
-if (userType == "community" || userName[0] == "_")
-    linkUrl = "http://" + userType + ".livejournal.com/" + userName + "/" + entryId + ".html";
-else
-    linkUrl = "http://" + userName + ".livejournal.com/" + entryId + ".html";
-td_log("linkUrl " + linkUrl);
 
 // To test whether we've seen a number, we first convert the list into an
 // associative array with keys as comment numbers (because there's no array
@@ -541,13 +533,13 @@ function keypress_handler(event)
     var isComment = (newCommentAnchors[nextComment][0] != "");
     var obj;
     var commentNumber;
-    if (event.which == 110 || event.which == 1090) // 'n'
+    if (event.which == 110 || event.which == 1090) // 'n', or 'n' in Russian
     {
         obj = newCommentAnchors[nextComment][1];
         commentNumber = newCommentAnchors[nextComment][0];
         nextComment = (nextComment + 1) % newCommentAnchors.length;
     }
-    else if (event.which == 112 || event.which == 1079) // 'p'
+    else if (event.which == 112 || event.which == 1079) // 'p', or "p" in Russian
     {
         nextComment = (nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length;
         obj = newCommentAnchors[(nextComment + newCommentAnchors.length - 1) % newCommentAnchors.length][1];
