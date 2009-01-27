@@ -586,8 +586,9 @@ td_log("added event listener");
 //                      Try harder to draw boxes.
 // 1.1      2008-03-31  XPath speedups, make NEW links work better.
 // 1.2      2008-09-24  Russian keyboards, make threads expand.
+// 1.3      2009-01-27  Independentminds journals now recognised.
 
-// Copyright (c) 2005-2008 Paul Wright
+// Copyright (c) 2005-2009 Paul Wright
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
