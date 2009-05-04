@@ -22,8 +22,9 @@
 // ==UserScript==
 // @name          LJ New Comments
 // @namespace     http://www.noctua.org.uk/paul/
-// @description   Remember which comments we've seen on LiveJournal.
+// @description   Remember which comments we've seen on LiveJournal and Dreamwidth.
 // @include       http://*.livejournal.com/*
+// @include       http://*.dreamwidth.org/*
 // ==/UserScript==
 
 if (!GM_log || !GM_setValue || !GM_getValue)
@@ -45,6 +46,21 @@ else
 {
     function td_log(what) {}
 }
+
+// Compatibility with LJ clones
+var sitename = document.location.hostname.match(/\w+\.\w+$/)[0];
+var site_prefix;
+if (sitename == "livejournal.com")
+{
+    // The original, accessed without a prefix.
+    site_prefix = "";
+}
+else
+{
+    site_prefix = sitename + "_";
+}
+
+
 
 // Work around Firefox 1.5 memory leak with event listeners.
 // See http://www.squarefree.com/2006/02/04/memory-leak-progress/
@@ -97,19 +113,28 @@ useCapture:useCapture});
 // 0. user name
 // 1. entry ID
 // or return undefined if the URL is not an entry in someone's LJ.
+
+var siteregex = sitename.replace(".", "\\.");
+// This is the old form, retained for completeness.
+// www.livejournal.com/users/fred/666.html
+var url1regex = new RegExp("^http:\\/\\/www\\." + siteregex + "\\/(users|community)\\/([\\w-]+)\\/(\\d+)\\.html");
+// pw201.livejournal.com/666.html
+var url2regex = new RegExp("^http:\\/\\/([\\w-\\.]+)\\." + siteregex + "\\/(\\d+)\\.html");
+// community.livejournal.com/polybdsmfurrygoths/666.html
+var url3regex = new RegExp("^http:\\/\\/(users|community)\\." + siteregex + "\\/([\\w-]+)\\/(\\d+)\\.html");
+
 function parse_lj_link(url)
 {
     var m;
-    if (m = url.match(/^http:\/\/www\.livejournal\.com\/(users|community)\/([\w-]+)\/(\d+)\.html/))
+    if (m = url.match(url1regex))
     {
-        // This is the old form, retained for completeness.
         return m.slice(2);
     }
-    else if (m = url.match(/^http:\/\/([\w-\.]+)\.livejournal.com\/(\d+)\.html/))
+    else if (m = url.match(url2regex))
     {
         return m.slice(1);
     }
-    else if (m = url.match(/^http:\/\/(users|community)\.livejournal\.com\/([\w-]+)\/(\d+)\.html/))
+    else if (m = url.match(url3regex))
     {
         return m.slice(2);
     }
@@ -156,7 +181,7 @@ function find_in_array(what, array)
 function get_list(key)
 {
     var l;
-    if (l = GM_getValue(key))
+    if (l = GM_getValue(site_prefix + key))
         return l.split(",");
     else
         return [];
@@ -230,9 +255,9 @@ function store_comment_array(username, id, comment_list)
         }
     }
     td_log("Storing " + entry_key + "'s comments in slot " + slot_index);
-    GM_setValue("slot_order", slot_order.join(","));
-    GM_setValue("access_order", access_order.join(","));
-    GM_setValue("entry_" + slot_index, comment_list.join(","));
+    GM_setValue(site_prefix + "slot_order", slot_order.join(","));
+    GM_setValue(site_prefix + "access_order", access_order.join(","));
+    GM_setValue(site_prefix + "entry_" + slot_index, comment_list.join(","));
 }
 
 // Retrieve an array of the comment numbers we've seen for a given entry, given
@@ -258,7 +283,7 @@ function get_comment_array(username, id)
             // If we found an old style key, remove the text in it, and
             // store it in our new slot arrangement, so that the seen
             // comments are not lost.
-            GM_setValue(entry_key,"");
+            GM_setValue(site_prefix + entry_key,"");
             store_comment_array(username, id, comment_list);
             td_log("Converted old key " + entry_key);
         }
@@ -271,7 +296,7 @@ function get_comment_array(username, id)
         // friends or entry page to see whether there are new comments.
         access_order.splice(access_index,1);
         access_order.unshift(entry_key);
-        GM_setValue("access_order", access_order.join(","));
+        GM_setValue(site_prefix + "access_order", access_order.join(","));
     }
 
     return comment_list;
@@ -329,6 +354,7 @@ else
                 newCommentAnchors.push(["", thisLink]);
                 seenNew = true;
             }
+            td_log(parsedLink[0] + "!" + parsedLink[1]);
             td_log(thisLink.href + " has " + num_new + " new");
         }
     }
@@ -587,6 +613,7 @@ td_log("added event listener");
 // 1.1      2008-03-31  XPath speedups, make NEW links work better.
 // 1.2      2008-09-24  Russian keyboards, make threads expand.
 // 1.3      2009-01-27  Independentminds journals now recognised.
+// 1.4      2009-05-04  Dreamwidth support.
 
 // Copyright (c) 2005-2009 Paul Wright
 //
