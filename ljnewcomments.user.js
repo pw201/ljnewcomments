@@ -399,7 +399,7 @@ var allAnchors;
 // using XPath, so we assume that anything with an ID or name of the right form
 // is what we're after. God, I love LJ.
 allAnchors = document.evaluate(
-    '//*[starts-with(@id,"ljcmt") or starts-with(@name,"t") or starts-with(@id,"t")]',
+    '//*[starts-with(@id,"ljcmt") or starts-with(@id,"cmt") or starts-with(@name,"t") or starts-with(@id,"t")]',
     document,
     null,
     XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
@@ -411,6 +411,7 @@ for (var i = 0; i < allAnchors.snapshotLength; i++)
     // No xpath 2.0 regex support in Firefox, apparently, so filter more here. 
     var attr = thisAnchor.id || thisAnchor.name;
     if (attr && ((m = attr.match(/^ljcmt(\d+)$/)) ||
+                (m = attr.match(/^cmt(\d+)$/)) ||
             (m = attr.match(/^t(\d+)$/))))
     {
         td_log("Matched " + m);
@@ -614,6 +615,7 @@ td_log("added event listener");
 // 1.2      2008-09-24  Russian keyboards, make threads expand.
 // 1.3      2009-01-27  Independentminds journals now recognised.
 // 1.4      2009-05-04  Dreamwidth support.
+// 1.5      2009-09-22  Dreamwidth support amended.
 
 // Copyright (c) 2005-2009 Paul Wright
 //
