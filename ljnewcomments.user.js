@@ -1,7 +1,7 @@
 // LJ New Comments script
-// version 1.3 
+// version 1.6 
 // $Id$
-// Copyright (c) 2005-2008, Paul Wright
+// Copyright (c) 2005-2010, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
 // this code is released under the MIT licence which you can find at
 // the bottom of this file.
@@ -121,7 +121,7 @@ var url1regex = new RegExp("^http:\\/\\/www\\." + siteregex + "\\/(users|communi
 // pw201.livejournal.com/666.html
 var url2regex = new RegExp("^http:\\/\\/([\\w-\\.]+)\\." + siteregex + "\\/(\\d+)\\.html");
 // community.livejournal.com/polybdsmfurrygoths/666.html
-var url3regex = new RegExp("^http:\\/\\/(users|community)\\." + siteregex + "\\/([\\w-]+)\\/(\\d+)\\.html");
+var url3regex = new RegExp("^http:\\/\\/(users|community|syndicated)\\." + siteregex + "\\/([\\w-]+)\\/(\\d+)\\.html");
 
 function parse_lj_link(url)
 {
@@ -616,6 +616,7 @@ td_log("added event listener");
 // 1.3      2009-01-27  Independentminds journals now recognised.
 // 1.4      2009-05-04  Dreamwidth support.
 // 1.5      2009-09-22  Dreamwidth support amended.
+// 1.6      2010-08-09  Make syndicated journals work
 
 // Copyright (c) 2005-2009 Paul Wright
 //
