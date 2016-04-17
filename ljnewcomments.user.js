@@ -1,6 +1,5 @@
 // LJ New Comments script
 // version 1.6 
-// $Id$
 // Copyright (c) 2005-2010, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
 // this code is released under the MIT licence which you can find at
@@ -25,6 +24,10 @@
 // @description   Remember which comments we've seen on LiveJournal and Dreamwidth.
 // @include       http://*.livejournal.com/*
 // @include       http://*.dreamwidth.org/*
+// @version       1.7
+// @grant GM_log 
+// @grant GM_getValue
+// @grant GM_setValue
 // ==/UserScript==
 
 if (!GM_log || !GM_setValue || !GM_getValue)
