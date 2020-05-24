@@ -1,6 +1,5 @@
 // LJ New Comments script
-// version 1.6 
-// Copyright (c) 2005-2010, Paul Wright
+// Copyright (c) 2005-2016, Paul Wright
 // With the exception of the EventManager, which belongs to someone else,
 // this code is released under the MIT licence which you can find at
 // the bottom of this file.
@@ -22,9 +21,9 @@
 // @name          LJ New Comments
 // @namespace     http://www.noctua.org.uk/paul/
 // @description   Remember which comments we've seen on LiveJournal and Dreamwidth.
-// @include       http://*.livejournal.com/*
-// @include       http://*.dreamwidth.org/*
-// @version       1.7
+// @include       *://*.livejournal.com/*
+// @include       *://*.dreamwidth.org/*
+// @version       1.8
 // @grant GM_log 
 // @grant GM_getValue
 // @grant GM_setValue
@@ -120,11 +119,11 @@ useCapture:useCapture});
 var siteregex = sitename.replace(".", "\\.");
 // This is the old form, retained for completeness.
 // www.livejournal.com/users/fred/666.html
-var url1regex = new RegExp("^http:\\/\\/www\\." + siteregex + "\\/(users|community)\\/([\\w-]+)\\/(\\d+)\\.html");
+var url1regex = new RegExp("^https?:\\/\\/www\\." + siteregex + "\\/(users|community)\\/([\\w-]+)\\/(\\d+)\\.html");
 // pw201.livejournal.com/666.html
-var url2regex = new RegExp("^http:\\/\\/([\\w-\\.]+)\\." + siteregex + "\\/(\\d+)\\.html");
+var url2regex = new RegExp("^https?:\\/\\/([\\w-\\.]+)\\." + siteregex + "\\/(\\d+)\\.html");
 // community.livejournal.com/polybdsmfurrygoths/666.html
-var url3regex = new RegExp("^http:\\/\\/(users|community|syndicated)\\." + siteregex + "\\/([\\w-]+)\\/(\\d+)\\.html");
+var url3regex = new RegExp("^https?:\\/\\/(users|community|syndicated)\\." + siteregex + "\\/([\\w-]+)\\/(\\d+)\\.html");
 
 function parse_lj_link(url)
 {
@@ -620,8 +619,10 @@ td_log("added event listener");
 // 1.4      2009-05-04  Dreamwidth support.
 // 1.5      2009-09-22  Dreamwidth support amended.
 // 1.6      2010-08-09  Make syndicated journals work
+// 1.7      2016-04-17  Add @grant lines to make it work again.
+// 1.8      2017-10-18  Fix for https URLs
 
-// Copyright (c) 2005-2009 Paul Wright
+// Copyright (c) 2005-2017 Paul Wright
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
